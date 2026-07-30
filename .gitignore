@@ -1,0 +1,14 @@
+credentials.txt
+credentials.json
+
+__pycache__/
+.ipynb_checkpoints/
+
+# regenerable progress checkpoints (derived from an output xlsx, not a deliverable)
+output/*checkpoint*.json
+
+# point-in-time snapshots kept for manual comparison, not the working deliverable
+output/snapshot_*.xlsx
+
+# early development test runs, kept locally for reference but not part of the deliverable
+output/test_run_*.xlsx
