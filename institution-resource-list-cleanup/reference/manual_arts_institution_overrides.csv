@@ -1,0 +1,5 @@
+unitid,institution_name,reason
+169442,College for Creative Studies,"Dedicated art and design school; name has no keyword matched by the arts/music name pattern (\"Creative Studies\" is generic-sounding) and program-percentage data isn't reported"
+194578,Pratt Institute-Main,"Dedicated art/design/architecture school; name has no art/design/music keyword at all (just a surname + \"Institute\")"
+19457801,Pratt Manhattan-A Division of Pratt Institute,"Same institution as Pratt Institute-Main (194578), a dedicated art/design/architecture school"
+190372,The Cooper Union for the Advancement of Science and Art,"Dedicated art/architecture/engineering school; \"Art\" appears in the name but only as part of a specific historical phrase (\"Advancement of Science and Art\") too narrow/fragile to safely generalize into a name pattern"

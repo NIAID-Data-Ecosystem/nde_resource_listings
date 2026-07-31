@@ -5,7 +5,8 @@ description: Build a spreadsheet of U.S. institutions accredited by both the Dep
 
 # Accredited institution resource-page directory
 
-Produces `output/accredited_nonprofit_secular_institutions.xlsx`: one row per U.S. institution that
+Produces `output/<YYYY-MM-DD>_accredited_nonprofit_secular_institutions.xlsx` (dated by the day the
+pipeline was run, not a fixed name — see "Comparing runs" below): one row per U.S. institution that
 is accredited by an accreditor recognized by **both** the U.S. Department of Education (ED/USDE) and
 the Council for Higher Education Accreditation (CHEA), is **non-profit** (public or private
 non-profit — not private for-profit), is **non-religious** (by IPEDS field, faith-related
@@ -93,7 +94,8 @@ alphabetically, so Step 5 tackles the most relevant institutions first.
      see "Prioritize by biomedical relevance" below. This is a sort key, not a filter; it never
      removes a row.
    - Adds a `base_domain` column (homepage URL's host, minus scheme/`www.`/path) for de-duplication.
-   - Writes the result to `output/accredited_nonprofit_secular_institutions.xlsx` with columns:
+   - Writes the result to `output/<YYYY-MM-DD>_accredited_nonprofit_secular_institutions.xlsx` with
+     columns:
      `unitid, institution_name, homepage_url, city, state, accreditor, pct_biomedical,
      has_biomedical_program_data, base_domain, resource_list_url, resource_list_notes` (the last
      two start empty, filled in Step 5), sorted by `pct_biomedical` descending.
@@ -102,6 +104,42 @@ alphabetically, so Step 5 tackles the most relevant institutions first.
    dual-accreditation filtering will cut this down further). If the count looks off by an order of
    magnitude, inspect `df[~df["dual_accredited"]]["accreditor_raw"].unique()` for accreditor-name
    variants missing from the reference CSV before re-running.
+
+### Comparing runs (dated output files)
+
+Each run writes its own dated file rather than overwriting the previous one, so re-running this
+pipeline — e.g. after fixing a reference-list bug, or just to pick up institutions newly added to
+Scorecard — always leaves the prior run's file intact for comparison, not just the new one.
+
+This matters because Filter 1's accreditor match is a plain substring check against
+`reference/chea_usde_institutional_accreditors.csv`, and that reference list can be *silently*
+wrong: a mismatched accreditor name doesn't error, it just quietly drops every institution
+accredited by it. This happened for real — the reference list had "New England Commission **of**
+Higher Education" (should be "**on**") and "WASC Senior College and University Commission" (the
+Scorecard API actually spells out "Western Association of Schools and Colleges Senior Colleges and
+University Commission" rather than using the WASC abbreviation), silently excluding every
+NECHE-accredited institution (all of New England — Harvard, Yale, MIT, Dartmouth, Brown, etc.) and
+every WSCUC-accredited institution (all of California/Hawaii/Pacific — Stanford, all UC and CSU
+campuses, etc.) with no error or warning, just a plausible-looking but too-small output. Two
+prestigious-university-shaped holes in the data was the actual symptom that surfaced this.
+
+To check whether a reference-list fix (or any re-run) actually changed anything, and to scope
+downstream work (Step 5, `institution-resource-list-cleanup`, etc.) to just the institutions that
+are newly present rather than re-processing everything:
+
+```python
+import pandas as pd
+old = pd.read_excel("output/<older-date>_accredited_nonprofit_secular_institutions.xlsx")
+new = pd.read_excel("output/<newer-date>_accredited_nonprofit_secular_institutions.xlsx")
+
+new_institutions = new[~new["unitid"].isin(old["unitid"])]
+removed_institutions = old[~old["unitid"].isin(new["unitid"])]
+print(f"{len(new_institutions)} newly added, {len(removed_institutions)} no longer present")
+```
+
+Downstream skills can then be pointed at just `new_institutions` (e.g. write it to its own small
+xlsx and run `institution-resource-list-cleanup`/Step 5 against that) instead of redoing work
+already done against the older run's institutions.
 
 ### Filter 4: exclude dedicated art/music schools
 
@@ -198,7 +236,7 @@ For each unique `base_domain`:
    interruption" below for why this matters), applying it to every row sharing that domain in one
    call:
    ```
-   python scripts/update_resource_entry.py --xlsx ../output/accredited_nonprofit_secular_institutions.xlsx \
+   python scripts/update_resource_entry.py --xlsx ../output/<date>_accredited_nonprofit_secular_institutions.xlsx \
      --domain <base_domain> --url "<found url>" --notes "<one-line note, e.g. how it was found, or why nothing was found>"
    ```
    Use `--unitid <unitid>` instead of `--domain` for a one-off correction to a single row (e.g. a
@@ -223,7 +261,7 @@ cooldown mid-run — so the workflow is built to never lose finished work and to
   window small: call `update_resource_entry.py` for each domain as soon as it's resolved (or after
   a small batch of 5-10), not after searching a large batch and writing them all at the end. Don't
   hold dozens of found-but-unwritten results in context.
-- **Run `scripts/step5_status.py --xlsx ../output/accredited_nonprofit_secular_institutions.xlsx`
+- **Run `scripts/step5_status.py --xlsx ../output/<date>_accredited_nonprofit_secular_institutions.xlsx`
   at the start of every Step 5 session** (fresh or resumed) to list exactly which base_domains
   still need a search, instead of re-scanning the whole spreadsheet or guessing where a prior
   session left off. It also writes `output/step5_checkpoint.json` — a small, gitignored,

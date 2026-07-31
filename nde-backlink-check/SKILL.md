@@ -1,6 +1,6 @@
 ---
 name: nde-backlink-check
-description: For every resource_list_url in a spreadsheet, search the resource's site for a link/mention of the NIAID Data Ecosystem (https://data.niaid.nih.gov) and record whether one was found in a new has_nde_backlink column. Runs independently of the URL-verification skills (does its own reachability check if they haven't run) and writes a dated output file each time, so re-running later to compare backlink coverage over time never overwrites an older run. Long-running and resumable — checkpoints after every small batch. Use when asked to check, search for, or verify NDE backlinks across the institution resource spreadsheet.
+description: For every resource_list_url in a spreadsheet, search the resource's site for a link/mention of the NIAID Data Ecosystem (https://data.niaid.nih.gov) and record whether one was found in a new has_nde_backlink column. Runs independently of the URL-verification skills (does its own reachability check if they haven't run) and writes a dated output file each time, so re-running later to compare backlink coverage over time never overwrites an older run. Long-running and resumable — checkpoints after every small batch. Also includes an institution-level summary report (working library/resource URLs vs. confirmed NDE backlinks). Use when asked to check, search for, or verify NDE backlinks across the institution resource spreadsheet, or to summarize/report on backlink-check results.
 ---
 
 # NDE backlink check
@@ -133,3 +133,33 @@ Check progress at any time, from the same directory (same `--xlsx`/`--source` de
 ```bash
 python scripts/backlink_check_status.py
 ```
+
+## Summarizing results at the institution level
+
+`backlink_check_status.py` reports progress in terms of *rows*, which isn't the same as
+*institutions*: the working xlsx is de-duplicated by `resource_list_url`
+(`institution-resource-list-cleanup`'s Operation 2), so one row can represent several institutions
+that happen to share a resource page — their `unitid`/`institution_name` are joined with `"; "` in
+that row rather than getting a row each. Counting rows undercounts institutions whenever that
+happened.
+
+`scripts/backlink_summary.py` reports the two counts the row-level status script can't give
+directly, splitting those joined fields back into individual institutions first:
+
+1. How many institutions have a **working** library/resource URL — HTTP 200 and not flagged as a
+   soft 404 (the same `compute_eligible_mask` check used to decide backlink-check eligibility).
+2. How many institutions' resource page **backlinks to the NIAID Data Ecosystem Discovery Portal**
+   (`data.niaid.nih.gov`) — `has_nde_backlink == True`, again counted by distinct institution.
+
+```bash
+python scripts/backlink_summary.py
+python scripts/backlink_summary.py --xlsx ../output/2026-07-31_unique_resources_backlink_check_merged.xlsx
+```
+
+- `--xlsx` — the file to summarize. Defaults to today's dated file next to the default `--source`,
+  matching `check_nde_backlinks.py`/`backlink_check_status.py`'s own default. Pass an explicit path
+  to summarize any other backlink-check file, including one that spans multiple runs merged
+  together (e.g. after folding a newly-added-institutions delta into the main dataset).
+
+Read-only — it never writes or modifies the xlsx, so it's safe to run at any point, including on a
+still-in-progress (partially checked) file.
